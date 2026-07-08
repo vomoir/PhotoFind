@@ -1,20 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from './store';
-import { 
-  Search, 
-  FolderPlus, 
-  Calendar, 
-  MapPin, 
-  User, 
-  Users, 
-  Tag, 
-  FileText, 
-  Check, 
-  Loader2, 
-  Image as ImageIcon, 
-  AlertTriangle, 
-  X, 
-  Info 
+import {
+  Search,
+  FolderPlus,
+  Calendar,
+  MapPin,
+  User,
+  Users,
+  Tag,
+  FileText,
+  Check,
+  Loader2,
+  Image as ImageIcon,
+  AlertTriangle,
+  X,
+  Info
 } from 'lucide-react';
 
 export default function App() {
@@ -31,12 +31,13 @@ export default function App() {
     selectPhoto,
     updateMetadata,
     startScan,
-    checkScanOnLoad
+    checkScanOnLoad,
+    deletePhoto
   } = useStore();
 
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [folderPath, setFolderPath] = useState('');
-  
+
   // Local state for metadata form inputs
   const [subject, setSubject] = useState('');
   const [people, setPeople] = useState('');
@@ -45,6 +46,8 @@ export default function App() {
   const [locationName, setLocationName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteError, setShowDeleteError] = useState(false);
 
   // Load initial photos and check scan state
   useEffect(() => {
@@ -90,14 +93,31 @@ export default function App() {
       setTimeout(() => setShowSaveSuccess(false), 3000);
     }
   };
+  const handleDeletePhoto = async (e) => {
+    e.preventDefault();
+    if (!selectedPhoto) return;
+
+    if (!window.confirm(`Are you sure you want to delete "${selectedPhoto.filename}"? This cannot be undone.`)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    const success = await deletePhoto(selectedPhoto.id);
+    setIsDeleting(false);
+
+    if (!success) {
+      setShowDeleteError(true);
+      setTimeout(() => setShowDeleteError(false), 3000);
+    }
+  };
 
   const formatExifDate = (dateStr) => {
     if (!dateStr) return 'Unknown Date';
     try {
       const d = new Date(dateStr);
-      return d.toLocaleDateString(undefined, { 
-        year: 'numeric', 
-        month: 'long', 
+      return d.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
@@ -132,8 +152,8 @@ export default function App() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button 
-            className="btn-primary" 
+          <button
+            className="btn-primary"
             onClick={() => setImportModalOpen(true)}
             disabled={scanning}
           >
@@ -145,7 +165,7 @@ export default function App() {
 
       {/* Main Panel Layout */}
       <main className="main-workspace">
-        
+
         {/* Left Panel: Photo Preview & Metadata Editor */}
         <section className="panel-left">
           <div className="viewer-section">
@@ -171,7 +191,7 @@ export default function App() {
 
                 {/* Form to Edit/Save Metadata */}
                 <form className="metadata-form" onSubmit={handleSaveMetadata}>
-                  
+
                   {/* Subject */}
                   <div className="form-group">
                     <label className="form-label">
@@ -255,25 +275,50 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Save actions */}
+                  {/* Save/Delete actions */}
                   <div className="form-actions">
                     {showSaveSuccess && (
                       <span className="save-success-msg">
                         <Check size={16} /> Saved Successfully
                       </span>
                     )}
-                    <button type="submit" className="btn-primary" disabled={isSaving}>
-                      {isSaving ? (
-                        <>
-                          <Loader2 size={16} className="spinner" />
-                          Saving...
-                        </>
-                      ) : (
-                        'Save Metadata'
-                      )}
-                    </button>
+                    {showDeleteError && (
+                      <span style={{ color: '#fca5a5', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <AlertTriangle size={16} /> Error deleting photo
+                      </span>
+                    )}
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={handleDeletePhoto}
+                        disabled={isDeleting}
+                        style={{ color: '#ef4444' }}
+                      >
+                        {isDeleting ? (
+                          <>
+                            <Loader2 size={16} className="spinner" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <X size={16} />
+                            Delete Photo
+                          </>
+                        )}
+                      </button>
+                      <button type="submit" className="btn-primary" disabled={isSaving}>
+                        {isSaving ? (
+                          <>
+                            <Loader2 size={16} className="spinner" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save Metadata'
+                        )}
+                      </button>
+                    </div>
                   </div>
-
                 </form>
               </>
             ) : (
@@ -287,7 +332,7 @@ export default function App() {
 
         {/* Right Panel: Gallery Search & Grid View */}
         <section className="panel-right">
-          
+
           {/* Docked Scan Progress Banner */}
           {scanning && (
             <div className="scanner-progress-container" style={{ marginBottom: '1.5rem' }}>
@@ -299,10 +344,10 @@ export default function App() {
                 <span>{scanProgress.processed} / {scanProgress.total}</span>
               </div>
               <div className="progress-bar-bg">
-                <div 
-                  className="progress-bar-fill" 
-                  style={{ 
-                    width: `${scanProgress.total > 0 ? (scanProgress.processed / scanProgress.total) * 100 : 0}%` 
+                <div
+                  className="progress-bar-fill"
+                  style={{
+                    width: `${scanProgress.total > 0 ? (scanProgress.processed / scanProgress.total) * 100 : 0}%`
                   }}
                 />
               </div>
@@ -342,21 +387,21 @@ export default function App() {
             <div className="photo-grid">
               {photos.map((photo) => {
                 const isSelected = selectedPhoto?.id === photo.id;
-                
+
                 // Construct badges lists
                 const peopleList = photo.people ? photo.people.split(',').map(p => p.trim()).filter(Boolean) : [];
                 const tagsList = photo.tags ? photo.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
 
                 return (
-                  <div 
-                    key={photo.id} 
+                  <div
+                    key={photo.id}
                     className={`photo-card ${isSelected ? 'selected' : ''}`}
                     onClick={() => selectPhoto(photo)}
                   >
                     <div className="card-thumbnail-container">
-                      <img 
-                        src={getImgSrc(photo.filepath)} 
-                        alt={photo.filename} 
+                      <img
+                        src={getImgSrc(photo.filepath)}
+                        alt={photo.filename}
                         className="card-thumbnail"
                         loading="lazy"
                       />
@@ -410,13 +455,13 @@ export default function App() {
               <ImageIcon className="empty-gallery-icon" />
               <h3 className="empty-gallery-title">No Photos Found</h3>
               <p className="empty-gallery-desc">
-                {searchQuery.trim() !== '' 
-                  ? `No pictures match your search filter "${searchQuery}".` 
+                {searchQuery.trim() !== ''
+                  ? `No pictures match your search filter "${searchQuery}".`
                   : 'Get started by scanning a folder containing your image library.'}
               </p>
               {searchQuery.trim() === '' && (
-                <button 
-                  className="btn-primary" 
+                <button
+                  className="btn-primary"
                   style={{ marginTop: '1rem' }}
                   onClick={() => setImportModalOpen(true)}
                 >
@@ -436,17 +481,17 @@ export default function App() {
           <div className="modal-content">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 className="modal-title">Scan Directory</h2>
-              <button 
+              <button
                 style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
                 onClick={() => setImportModalOpen(false)}
               >
                 <X size={20} />
               </button>
             </div>
-            
+
             <p className="modal-description">
-              Provide the absolute filepath of the directory containing your images. 
-              The scanner will recursively search for JPG, JPEG, PNG, WEBP, and HEIC files, 
+              Provide the absolute filepath of the directory containing your images.
+              The scanner will recursively search for JPG, JPEG, PNG, WEBP, and HEIC files,
               parse their EXIF locations, and register them.
             </p>
 
@@ -471,10 +516,10 @@ export default function App() {
                     <span>{scanProgress.processed} / {scanProgress.total}</span>
                   </div>
                   <div className="progress-bar-bg">
-                    <div 
-                      className="progress-bar-fill" 
-                      style={{ 
-                        width: `${scanProgress.total > 0 ? (scanProgress.processed / scanProgress.total) * 100 : 0}%` 
+                    <div
+                      className="progress-bar-fill"
+                      style={{
+                        width: `${scanProgress.total > 0 ? (scanProgress.processed / scanProgress.total) * 100 : 0}%`
                       }}
                     />
                   </div>
@@ -482,16 +527,16 @@ export default function App() {
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn-secondary"
                   onClick={() => setImportModalOpen(false)}
                   disabled={scanning}
                 >
                   Close
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="btn-primary"
                   disabled={scanning || folderPath.trim() === ''}
                 >
