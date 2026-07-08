@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from './store';
-import { 
-  Search, 
-  FolderPlus, 
-  Calendar, 
-  MapPin, 
-  User, 
-  Users, 
-  Tag, 
-  FileText, 
-  Check, 
-  Loader2, 
-  Image as ImageIcon, 
-  AlertTriangle, 
-  X, 
+import {
+  Search,
+  FolderPlus,
+  Calendar,
+  MapPin,
+  User,
+  Users,
+  Tag,
+  FileText,
+  Check,
+  Loader2,
+  Image as ImageIcon,
+  AlertTriangle,
+  X,
   Info,
   ZoomIn
 } from 'lucide-react';
@@ -95,24 +95,6 @@ export default function App() {
       setTimeout(() => setShowSaveSuccess(false), 3000);
     }
   };
-  const handleDeletePhoto = async (e) => {
-    e.preventDefault();
-    if (!selectedPhoto) return;
-
-    if (!window.confirm(`Are you sure you want to delete "${selectedPhoto.filename}"? This cannot be undone.`)) {
-      return;
-    }
-
-    setIsDeleting(true);
-    const success = await deletePhoto(selectedPhoto.id);
-    setIsDeleting(false);
-
-    if (!success) {
-      setShowDeleteError(true);
-      setTimeout(() => setShowDeleteError(false), 3000);
-    }
-  };
-
   const handleDeletePhoto = async (e) => {
     e.preventDefault();
     if (!selectedPhoto) return;
@@ -312,9 +294,9 @@ export default function App() {
                       </span>
                     )}
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
-                      <button 
-                        type="button" 
-                        className="btn-secondary" 
+                      <button
+                        type="button"
+                        className="btn-secondary"
                         onClick={handleDeletePhoto}
                         disabled={isDeleting}
                         style={{ color: '#ef4444' }}
@@ -576,7 +558,7 @@ export default function App() {
       {fullscreenModalOpen && selectedPhoto && (
         <div className="fullscreen-overlay" onClick={() => setFullscreenModalOpen(false)}>
           <div className="fullscreen-container" onClick={(e) => e.stopPropagation()}>
-            <button 
+            <button
               className="fullscreen-close-btn"
               onClick={() => setFullscreenModalOpen(false)}
               title="Close (ESC)"
