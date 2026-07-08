@@ -14,7 +14,8 @@ import {
   Image as ImageIcon, 
   AlertTriangle, 
   X, 
-  Info 
+  Info,
+  ZoomIn
 } from 'lucide-react';
 
 export default function App() {
@@ -31,7 +32,8 @@ export default function App() {
     selectPhoto,
     updateMetadata,
     startScan,
-    checkScanOnLoad
+    checkScanOnLoad,
+    deletePhoto
   } = useStore();
 
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -45,6 +47,9 @@ export default function App() {
   const [locationName, setLocationName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteError, setShowDeleteError] = useState(false);
+  const [fullscreenModalOpen, setFullscreenModalOpen] = useState(false);
 
   // Load initial photos and check scan state
   useEffect(() => {
@@ -88,6 +93,24 @@ export default function App() {
     if (success) {
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 3000);
+    }
+  };
+
+  const handleDeletePhoto = async (e) => {
+    e.preventDefault();
+    if (!selectedPhoto) return;
+
+    if (!window.confirm(`Are you sure you want to delete "${selectedPhoto.filename}"? This cannot be undone.`)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    const success = await deletePhoto(selectedPhoto.id);
+    setIsDeleting(false);
+
+    if (!success) {
+      setShowDeleteError(true);
+      setTimeout(() => setShowDeleteError(false), 3000);
     }
   };
 
@@ -160,13 +183,17 @@ export default function App() {
                 </div>
 
                 {/* Scaled Image Preview */}
-                <div className="image-preview-container">
+                <div className="image-preview-container" onClick={() => setFullscreenModalOpen(true)}>
                   <img
                     src={getImgSrc(selectedPhoto.filepath)}
                     alt={selectedPhoto.filename}
                     className="image-preview"
                     loading="lazy"
                   />
+                  <div className="image-fullscreen-overlay">
+                    <ZoomIn size={24} />
+                    <span>Click to view fullscreen</span>
+                  </div>
                 </div>
 
                 {/* Form to Edit/Save Metadata */}
@@ -255,23 +282,49 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Save actions */}
+                  {/* Save/Delete actions */}
                   <div className="form-actions">
                     {showSaveSuccess && (
                       <span className="save-success-msg">
                         <Check size={16} /> Saved Successfully
                       </span>
                     )}
-                    <button type="submit" className="btn-primary" disabled={isSaving}>
-                      {isSaving ? (
-                        <>
-                          <Loader2 size={16} className="spinner" />
-                          Saving...
-                        </>
-                      ) : (
-                        'Save Metadata'
-                      )}
-                    </button>
+                    {showDeleteError && (
+                      <span style={{ color: '#fca5a5', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <AlertTriangle size={16} /> Error deleting photo
+                      </span>
+                    )}
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      <button 
+                        type="button" 
+                        className="btn-secondary" 
+                        onClick={handleDeletePhoto}
+                        disabled={isDeleting}
+                        style={{ color: '#ef4444' }}
+                      >
+                        {isDeleting ? (
+                          <>
+                            <Loader2 size={16} className="spinner" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <X size={16} />
+                            Delete Photo
+                          </>
+                        )}
+                      </button>
+                      <button type="submit" className="btn-primary" disabled={isSaving}>
+                        {isSaving ? (
+                          <>
+                            <Loader2 size={16} className="spinner" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save Metadata'
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                 </form>
@@ -499,6 +552,29 @@ export default function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Dialog: Fullscreen Image Viewer */}
+      {fullscreenModalOpen && selectedPhoto && (
+        <div className="fullscreen-overlay" onClick={() => setFullscreenModalOpen(false)}>
+          <div className="fullscreen-container" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="fullscreen-close-btn"
+              onClick={() => setFullscreenModalOpen(false)}
+              title="Close (ESC)"
+            >
+              <X size={24} />
+            </button>
+            <img
+              src={getImgSrc(selectedPhoto.filepath)}
+              alt={selectedPhoto.filename}
+              className="fullscreen-image"
+            />
+            <div className="fullscreen-info">
+              <p className="fullscreen-filename">{selectedPhoto.filename}</p>
+            </div>
           </div>
         </div>
       )}
