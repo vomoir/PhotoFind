@@ -101,7 +101,6 @@ app.put('/api/photos/:id/metadata', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // 6. Delete a photo from the database
 app.delete('/api/photos/:id', (req, res) => {
   const { id } = req.params;

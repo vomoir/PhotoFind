@@ -20,9 +20,9 @@ export const useStore = create((set, get) => {
         const response = await fetch(`/api/photos?search=${encodeURIComponent(query)}`);
         if (!response.ok) throw new Error('Failed to fetch photos');
         const data = await response.json();
-        
+
         set({ photos: data, loadingPhotos: false });
-        
+
         // Preserve selection or auto-select first photo if nothing selected
         const currentSelected = get().selectedPhoto;
         if (currentSelected) {
@@ -65,7 +65,7 @@ export const useStore = create((set, get) => {
         const updatedPhoto = await response.json();
 
         // Update list of photos
-        const updatedPhotos = get().photos.map((p) => 
+        const updatedPhotos = get().photos.map((p) =>
           p.id === id ? updatedPhoto : p
         );
 
@@ -73,14 +73,40 @@ export const useStore = create((set, get) => {
           photos: updatedPhotos,
           selectedPhoto: get().selectedPhoto?.id === id ? updatedPhoto : get().selectedPhoto
         });
-        
+
         return true;
       } catch (err) {
         console.error('Error updating metadata:', err);
         return false;
       }
     },
+    // Delete a photo from the database
+    deletePhoto: async (id) => {
+      try {
+        const response = await fetch(`/api/photos/${id}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        });
 
+        if (!response.ok) throw new Error('Failed to delete photo');
+
+        // Remove from photos list
+        const updatedPhotos = get().photos.filter((p) => p.id !== id);
+
+        // Clear selection if deleted photo was selected
+        const newSelected = updatedPhotos.length > 0 ? updatedPhotos[0] : null;
+
+        set({
+          photos: updatedPhotos,
+          selectedPhoto: newSelected
+        });
+
+        return true;
+      } catch (err) {
+        console.error('Error deleting photo:', err);
+        return false;
+      }
+    },
     // Start background scan of local directory
     startScan: async (directoryPath) => {
       set({ scanning: true, scanError: null, scanProgress: { processed: 0, total: 0, currentFile: '' } });
