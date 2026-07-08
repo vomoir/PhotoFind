@@ -1,20 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from './store';
-import {
-  Search,
-  FolderPlus,
-  Calendar,
-  MapPin,
-  User,
-  Users,
-  Tag,
-  FileText,
-  Check,
-  Loader2,
-  Image as ImageIcon,
-  AlertTriangle,
-  X,
-  Info
+import { 
+  Search, 
+  FolderPlus, 
+  Calendar, 
+  MapPin, 
+  User, 
+  Users, 
+  Tag, 
+  FileText, 
+  Check, 
+  Loader2, 
+  Image as ImageIcon, 
+  AlertTriangle, 
+  X, 
+  Info,
+  ZoomIn
 } from 'lucide-react';
 
 export default function App() {
@@ -48,6 +49,7 @@ export default function App() {
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteError, setShowDeleteError] = useState(false);
+  const [fullscreenModalOpen, setFullscreenModalOpen] = useState(false);
 
   // Load initial photos and check scan state
   useEffect(() => {
@@ -93,6 +95,24 @@ export default function App() {
       setTimeout(() => setShowSaveSuccess(false), 3000);
     }
   };
+  const handleDeletePhoto = async (e) => {
+    e.preventDefault();
+    if (!selectedPhoto) return;
+
+    if (!window.confirm(`Are you sure you want to delete "${selectedPhoto.filename}"? This cannot be undone.`)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    const success = await deletePhoto(selectedPhoto.id);
+    setIsDeleting(false);
+
+    if (!success) {
+      setShowDeleteError(true);
+      setTimeout(() => setShowDeleteError(false), 3000);
+    }
+  };
+
   const handleDeletePhoto = async (e) => {
     e.preventDefault();
     if (!selectedPhoto) return;
@@ -180,13 +200,17 @@ export default function App() {
                 </div>
 
                 {/* Scaled Image Preview */}
-                <div className="image-preview-container">
+                <div className="image-preview-container" onClick={() => setFullscreenModalOpen(true)}>
                   <img
                     src={getImgSrc(selectedPhoto.filepath)}
                     alt={selectedPhoto.filename}
                     className="image-preview"
                     loading="lazy"
                   />
+                  <div className="image-fullscreen-overlay">
+                    <ZoomIn size={24} />
+                    <span>Click to view fullscreen</span>
+                  </div>
                 </div>
 
                 {/* Form to Edit/Save Metadata */}
@@ -288,9 +312,9 @@ export default function App() {
                       </span>
                     )}
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
-                      <button
-                        type="button"
-                        className="btn-secondary"
+                      <button 
+                        type="button" 
+                        className="btn-secondary" 
                         onClick={handleDeletePhoto}
                         disabled={isDeleting}
                         style={{ color: '#ef4444' }}
@@ -544,6 +568,29 @@ export default function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Dialog: Fullscreen Image Viewer */}
+      {fullscreenModalOpen && selectedPhoto && (
+        <div className="fullscreen-overlay" onClick={() => setFullscreenModalOpen(false)}>
+          <div className="fullscreen-container" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="fullscreen-close-btn"
+              onClick={() => setFullscreenModalOpen(false)}
+              title="Close (ESC)"
+            >
+              <X size={24} />
+            </button>
+            <img
+              src={getImgSrc(selectedPhoto.filepath)}
+              alt={selectedPhoto.filename}
+              className="fullscreen-image"
+            />
+            <div className="fullscreen-info">
+              <p className="fullscreen-filename">{selectedPhoto.filename}</p>
+            </div>
           </div>
         </div>
       )}

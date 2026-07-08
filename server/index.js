@@ -161,7 +161,7 @@ app.get('/api/photo/file', (req, res) => {
   }
 });
 
-// 7. Serve Vite client static build in production
+// 8. Serve Vite client static build in production
 const distPath = path.resolve(__dirname, '../dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
