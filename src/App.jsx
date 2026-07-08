@@ -69,6 +69,18 @@ export default function App() {
     }
   }, [selectedPhoto]);
 
+  // Handle ESC key to close fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && fullscreenModalOpen) {
+        setFullscreenModalOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fullscreenModalOpen]);
+
   const handleStartScan = (e) => {
     e.preventDefault();
     if (folderPath.trim() !== '') {
@@ -93,23 +105,6 @@ export default function App() {
     if (success) {
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 3000);
-    }
-  };
-  const handleDeletePhoto = async (e) => {
-    e.preventDefault();
-    if (!selectedPhoto) return;
-
-    if (!window.confirm(`Are you sure you want to delete "${selectedPhoto.filename}"? This cannot be undone.`)) {
-      return;
-    }
-
-    setIsDeleting(true);
-    const success = await deletePhoto(selectedPhoto.id);
-    setIsDeleting(false);
-
-    if (!success) {
-      setShowDeleteError(true);
-      setTimeout(() => setShowDeleteError(false), 3000);
     }
   };
 
