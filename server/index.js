@@ -102,7 +102,37 @@ app.put('/api/photos/:id/metadata', (req, res) => {
   }
 });
 
-// 6. Serve local photo files securely via stream to bypass browser file:// security
+// 6. Delete a photo from the database
+app.delete('/api/photos/:id', (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // First, get the photo to retrieve the filepath
+    const photo = db.prepare('SELECT * FROM photos WHERE id = ?').get(id);
+    if (!photo) {
+      return res.status(404).json({ error: 'Photo not found' });
+    }
+
+    // Delete from database
+    const stmt = db.prepare('DELETE FROM photos WHERE id = ?');
+    const result = stmt.run(id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Photo not found' });
+    }
+
+    // Optionally delete the actual file from disk
+    if (fs.existsSync(photo.filepath)) {
+      fs.unlinkSync(photo.filepath);
+    }
+
+    res.json({ message: 'Photo deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Serve local photo files securely via stream to bypass browser file:// security
 app.get('/api/photo/file', (req, res) => {
   const { filePath } = req.query;
 
@@ -132,7 +162,7 @@ app.get('/api/photo/file', (req, res) => {
   }
 });
 
-// 7. Serve Vite client static build in production
+// 8. Serve Vite client static build in production
 const distPath = path.resolve(__dirname, '../dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
