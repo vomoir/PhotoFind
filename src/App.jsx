@@ -51,6 +51,54 @@ export default function App() {
   const [showDeleteError, setShowDeleteError] = useState(false);
   const [fullscreenModalOpen, setFullscreenModalOpen] = useState(false);
 
+  useEffect(() => {
+    const test = (e) => console.log("KEY:", e.key);
+    window.addEventListener("keydown", test);
+    return () => window.removeEventListener("keydown", test);
+  }, []);
+
+  // Keyboard event listener for arrow keys to navigate photos
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (!selectedPhoto) return;
+
+      // --- ESCAPE closes the selected photo ---
+      if (e.key === "Escape") {
+        selectPhoto(selectedPhoto.id);   // or whatever your close function is
+        return;              // stop further processing
+      }
+
+      let nextPhotoId = null;
+
+      if (e.key === "ArrowLeft") {
+        const currentIndex = photos.findIndex(p => p.id === selectedPhoto.id);
+        if (currentIndex > 0) {
+          nextPhotoId = photos[currentIndex - 1].id;
+        }
+      } else if (e.key === "ArrowRight") {
+        const currentIndex = photos.findIndex(p => p.id === selectedPhoto.id);
+        if (currentIndex < photos.length - 1) {
+          nextPhotoId = photos[currentIndex + 1].id;
+        }
+      }
+
+      if (nextPhotoId) {
+        const nextPhoto = photos.find(p => p.id === nextPhotoId);
+        if (nextPhoto) {
+          selectPhoto(nextPhoto);
+
+          const el = document.getElementById(`photo-${nextPhoto.id}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [photos, selectedPhoto, selectPhoto]);
+
   // Load initial photos and check scan state
   useEffect(() => {
     fetchPhotos();
