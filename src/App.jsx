@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from './store';
-import { 
-  Search, 
-  FolderPlus, 
-  Calendar, 
-  MapPin, 
-  User, 
-  Users, 
-  Tag, 
-  FileText, 
-  Check, 
-  Loader2, 
-  Image as ImageIcon, 
-  AlertTriangle, 
-  X, 
+import {
+  Search,
+  FolderPlus,
+  Calendar,
+  MapPin,
+  User,
+  Users,
+  Tag,
+  FileText,
+  Check,
+  Loader2,
+  Image as ImageIcon,
+  AlertTriangle,
+  X,
   Info,
   ZoomIn
 } from 'lucide-react';
@@ -50,6 +50,54 @@ export default function App() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteError, setShowDeleteError] = useState(false);
   const [fullscreenModalOpen, setFullscreenModalOpen] = useState(false);
+
+  useEffect(() => {
+    const test = (e) => console.log("KEY:", e.key);
+    window.addEventListener("keydown", test);
+    return () => window.removeEventListener("keydown", test);
+  }, []);
+
+  // Keyboard event listener for arrow keys to navigate photos
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (!selectedPhoto) return;
+
+      // --- ESCAPE closes the selected photo ---
+      if (e.key === "Escape") {
+        selectPhoto(selectedPhoto.id);   // or whatever your close function is
+        return;              // stop further processing
+      }
+
+      let nextPhotoId = null;
+
+      if (e.key === "ArrowLeft") {
+        const currentIndex = photos.findIndex(p => p.id === selectedPhoto.id);
+        if (currentIndex > 0) {
+          nextPhotoId = photos[currentIndex - 1].id;
+        }
+      } else if (e.key === "ArrowRight") {
+        const currentIndex = photos.findIndex(p => p.id === selectedPhoto.id);
+        if (currentIndex < photos.length - 1) {
+          nextPhotoId = photos[currentIndex + 1].id;
+        }
+      }
+
+      if (nextPhotoId) {
+        const nextPhoto = photos.find(p => p.id === nextPhotoId);
+        if (nextPhoto) {
+          selectPhoto(nextPhoto);
+
+          const el = document.getElementById(`photo-${nextPhoto.id}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [photos, selectedPhoto, selectPhoto]);
 
   // Load initial photos and check scan state
   useEffect(() => {
@@ -105,24 +153,6 @@ export default function App() {
     if (success) {
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 3000);
-    }
-  };
-
-  const handleDeletePhoto = async (e) => {
-    e.preventDefault();
-    if (!selectedPhoto) return;
-
-    if (!window.confirm(`Are you sure you want to delete "${selectedPhoto.filename}"? This cannot be undone.`)) {
-      return;
-    }
-
-    setIsDeleting(true);
-    const success = await deletePhoto(selectedPhoto.id);
-    setIsDeleting(false);
-
-    if (!success) {
-      setShowDeleteError(true);
-      setTimeout(() => setShowDeleteError(false), 3000);
     }
   };
 
@@ -307,9 +337,9 @@ export default function App() {
                       </span>
                     )}
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
-                      <button 
-                        type="button" 
-                        className="btn-secondary" 
+                      <button
+                        type="button"
+                        className="btn-secondary"
                         onClick={handleDeletePhoto}
                         disabled={isDeleting}
                         style={{ color: '#ef4444' }}
@@ -571,7 +601,7 @@ export default function App() {
       {fullscreenModalOpen && selectedPhoto && (
         <div className="fullscreen-overlay" onClick={() => setFullscreenModalOpen(false)}>
           <div className="fullscreen-container" onClick={(e) => e.stopPropagation()}>
-            <button 
+            <button
               className="fullscreen-close-btn"
               onClick={() => setFullscreenModalOpen(false)}
               title="Close (ESC)"
