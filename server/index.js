@@ -131,31 +131,52 @@ app.delete('/api/photos/:id', (req, res) => {
   }
 });
 
+const buildMissingImageSvg = (filePath) => {
+  const safePath = String(filePath || 'image').replace(/[<>&"']/g, '');
+  const label = safePath.length > 80 ? `${safePath.slice(0, 77)}...` : safePath;
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+      <rect width="800" height="600" fill="#f3f4f6" />
+      <rect x="80" y="80" width="640" height="440" rx="24" fill="#e5e7eb" stroke="#cbd5e1" stroke-width="6" />
+      <path d="M220 420L320 300L390 360L520 220L650 420H220Z" fill="#94a3b8" />
+      <circle cx="270" cy="240" r="56" fill="#64748b" />
+      <text x="400" y="500" text-anchor="middle" fill="#475569" font-family="Arial, sans-serif" font-size="24">Image unavailable</text>
+      <text x="400" y="540" text-anchor="middle" fill="#64748b" font-family="Arial, sans-serif" font-size="16">${label}</text>
+    </svg>
+  `;
+};
+
 // 7. Serve local photo files securely via stream to bypass browser file:// security
 app.get('/api/photo/file', (req, res) => {
-  const { filePath } = req.query;
+  const rawFilePath = Array.isArray(req.query.filePath) ? req.query.filePath[0] : req.query.filePath;
 
-  if (!filePath) {
+  if (!rawFilePath) {
     return res.status(400).json({ error: 'filePath parameter is required.' });
   }
 
   try {
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'File not found on system.' });
+    const filePath = decodeURIComponent(rawFilePath);
+    const resolvedFilePath = path.resolve(filePath);
+
+    if (!fs.existsSync(resolvedFilePath)) {
+      console.warn(`[photo] Missing file path: ${filePath}`);
+      res.type('image/svg+xml');
+      return res.send(buildMissingImageSvg(filePath));
     }
 
-    const stat = fs.statSync(filePath);
+    const stat = fs.statSync(resolvedFilePath);
     if (!stat.isFile()) {
       return res.status(400).json({ error: 'Path is not a file.' });
     }
 
-    const ext = path.extname(filePath).toLowerCase();
+    const ext = path.extname(resolvedFilePath).toLowerCase();
     const allowedExts = new Set(['.jpg', '.jpeg', '.png', '.heic', '.webp', '.tiff', '.heif']);
     if (!allowedExts.has(ext)) {
       return res.status(400).json({ error: 'File type not supported for viewing.' });
     }
 
-    res.sendFile(path.resolve(filePath));
+    res.sendFile(resolvedFilePath);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

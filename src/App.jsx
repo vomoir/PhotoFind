@@ -136,6 +136,24 @@ export default function App() {
     }
   };
 
+    const handleDeletePhoto = async (e) => {
+    e.preventDefault();
+    if (!selectedPhoto) return;
+
+    if (!window.confirm(`Are you sure you want to delete "${selectedPhoto.filename}"? This cannot be undone.`)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    const success = await deletePhoto(selectedPhoto.id);
+    setIsDeleting(false);
+
+    if (!success) {
+      setShowDeleteError(true);
+      setTimeout(() => setShowDeleteError(false), 3000);
+    }
+  };
+
   const handleSaveMetadata = async (e) => {
     e.preventDefault();
     if (!selectedPhoto) return;
@@ -172,9 +190,31 @@ export default function App() {
     }
   };
 
+  const placeholderImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+      <rect width="800" height="600" fill="#f3f4f6" />
+      <rect x="80" y="80" width="640" height="440" rx="24" fill="#e5e7eb" stroke="#cbd5e1" stroke-width="6" />
+      <path d="M220 420L320 300L390 360L520 220L650 420H220Z" fill="#94a3b8" />
+      <circle cx="270" cy="240" r="56" fill="#64748b" />
+      <text x="400" y="500" text-anchor="middle" fill="#475569" font-family="Arial, sans-serif" font-size="28">Image unavailable</text>
+    </svg>
+  `)}`;
+
   // Helper to get image source path
   const getImgSrc = (filePath) => {
+    if (!filePath) {
+      return placeholderImage;
+    }
     return `/api/photo/file?filePath=${encodeURIComponent(filePath)}`;
+  };
+
+  const handleImageError = (event) => {
+    if (event.currentTarget.dataset.fallbackApplied === 'true') {
+      return;
+    }
+
+    event.currentTarget.dataset.fallbackApplied = 'true';
+    event.currentTarget.src = placeholderImage;
   };
 
   return (
@@ -231,6 +271,7 @@ export default function App() {
                     alt={selectedPhoto.filename}
                     className="image-preview"
                     loading="lazy"
+                    onError={handleImageError}
                   />
                   <div className="image-fullscreen-overlay">
                     <ZoomIn size={24} />
@@ -453,6 +494,7 @@ export default function App() {
                         alt={photo.filename}
                         className="card-thumbnail"
                         loading="lazy"
+                        onError={handleImageError}
                       />
                     </div>
                     <div className="card-details">
@@ -612,6 +654,7 @@ export default function App() {
               src={getImgSrc(selectedPhoto.filepath)}
               alt={selectedPhoto.filename}
               className="fullscreen-image"
+              onError={handleImageError}
             />
             <div className="fullscreen-info">
               <p className="fullscreen-filename">{selectedPhoto.filename}</p>
