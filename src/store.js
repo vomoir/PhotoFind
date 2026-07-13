@@ -1,5 +1,24 @@
 import { create } from 'zustand';
 
+const parseJsonOrText = async (response) => {
+  const text = await response.text();
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    try {
+      return JSON.parse(text);
+    } catch (err) {
+      throw new Error('Server returned invalid JSON.');
+    }
+  }
+
+  if (text) {
+    throw new Error(text);
+  }
+
+  throw new Error(`Server returned ${response.status} ${response.statusText}`);
+};
+
 export const useStore = create((set, get) => {
   let pollIntervalId = null;
 
@@ -18,8 +37,11 @@ export const useStore = create((set, get) => {
       try {
         const query = get().searchQuery;
         const response = await fetch(`/api/photos?search=${encodeURIComponent(query)}`);
-        if (!response.ok) throw new Error('Failed to fetch photos');
-        const data = await response.json();
+        if (!response.ok) {
+          const data = await parseJsonOrText(response);
+          throw new Error(data.error || data || 'Failed to fetch photos');
+        }
+        const data = await parseJsonOrText(response);
 
         set({ photos: data, loadingPhotos: false });
 
@@ -61,8 +83,11 @@ export const useStore = create((set, get) => {
           body: JSON.stringify(metadata),
         });
 
-        if (!response.ok) throw new Error('Failed to update metadata');
-        const updatedPhoto = await response.json();
+        if (!response.ok) {
+          const data = await parseJsonOrText(response);
+          throw new Error(data.error || data || 'Failed to update metadata');
+        }
+        const updatedPhoto = await parseJsonOrText(response);
 
         // Update list of photos
         const updatedPhotos = get().photos.map((p) =>
@@ -88,7 +113,10 @@ export const useStore = create((set, get) => {
           headers: { 'Content-Type': 'application/json' },
         });
 
-        if (!response.ok) throw new Error('Failed to delete photo');
+        if (!response.ok) {
+          const data = await parseJsonOrText(response);
+          throw new Error(data.error || data || 'Failed to delete photo');
+        }
 
         // Remove from photos list
         const updatedPhotos = get().photos.filter((p) => p.id !== id);
@@ -118,14 +146,17 @@ export const useStore = create((set, get) => {
         });
 
         if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || 'Failed to start scanning');
+          const data = await parseJsonOrText(response);
+          throw new Error(data.error || data || 'Failed to start scanning');
         }
 
         // Start polling scan status
         get().pollScanStatus();
       } catch (err) {
         set({ scanning: false, scanError: err.message });
+        if (typeof window !== 'undefined') {
+          window.alert(`Scan failed: ${err.message}`);
+        }
       }
     },
 
@@ -137,7 +168,7 @@ export const useStore = create((set, get) => {
         try {
           const response = await fetch('/api/scan/status');
           if (!response.ok) throw new Error('Failed to get scan status');
-          const status = await response.json();
+          const status = await parseJsonOrText(response);
 
           if (status.isScanning) {
             set({
@@ -176,7 +207,7 @@ export const useStore = create((set, get) => {
       try {
         const response = await fetch('/api/scan/status');
         if (!response.ok) return;
-        const status = await response.json();
+        const status = await parseJsonOrText(response);
         if (status.isScanning) {
           set({ scanning: true });
           get().pollScanStatus();

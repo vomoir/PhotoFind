@@ -182,7 +182,12 @@ app.get('/api/photo/file', (req, res) => {
   }
 });
 
-// 8. Serve Vite client static build in production
+// 8. Send JSON for unknown API routes in production
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API route not found.' });
+});
+
+// 9. Serve Vite client static build in production
 const distPath = path.resolve(__dirname, '../dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
@@ -191,6 +196,8 @@ if (fs.existsSync(distPath)) {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on http://${HOST}:${PORT}`);
 });
