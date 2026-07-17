@@ -1,25 +1,51 @@
-import fs from 'fs';
-import path from 'path';
-import exifr from 'exifr';
-import db from './db.js';
-import { reverseGeocode } from './geocoder.js';
+import fs from "fs";
+import path from "path";
+import exifr from "exifr";
+import db from "./db.js";
+import { reverseGeocode } from "./geocoder.js";
 
 // Global scan status
 export const scanStatus = {
   isScanning: false,
   totalFiles: 0,
   processedFiles: 0,
-  currentFile: '',
-  error: null
+  currentFile: "",
+  error: null,
 };
 
 // Supported image extensions
-const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.heic', '.webp', '.tiff', '.heif']);
+const IMAGE_EXTENSIONS = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".heic",
+  ".webp",
+  ".tiff",
+  ".heif",
+]);
+
+export function buildPhotoTags(existingTags = "", isNewPhoto = false) {
+  if (!isNewPhoto) {
+    return existingTags || "";
+  }
+
+  const normalizedTags = (existingTags || "")
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+
+  if (normalizedTags.includes("new image")) {
+    return normalizedTags.join(", ");
+  }
+
+  normalizedTags.push("new image");
+  return normalizedTags.join(", ");
+}
 
 /**
  * Recursively walks a directory to find image files.
- * @param {string} dirPath 
- * @param {string[]} fileList 
+ * @param {string} dirPath
+ * @param {string[]} fileList
  */
 function walkDirectory(dirPath, fileList = []) {
   try {
@@ -32,10 +58,10 @@ function walkDirectory(dirPath, fileList = []) {
       if (entry.isDirectory()) {
         const lowerName = entry.name.toLowerCase();
         if (
-          lowerName === 'node_modules' || 
-          lowerName === '.git' || 
-          lowerName === '$recycle.bin' || 
-          lowerName === 'system volume information'
+          lowerName === "node_modules" ||
+          lowerName === ".git" ||
+          lowerName === "$recycle.bin" ||
+          lowerName === "system volume information"
         ) {
           continue;
         }
@@ -55,13 +81,13 @@ function walkDirectory(dirPath, fileList = []) {
 
 /**
  * Performs scanning in the background.
- * @param {string} targetDir 
+ * @param {string} targetDir
  */
 async function runScan(targetDir) {
   scanStatus.isScanning = true;
   scanStatus.totalFiles = 0;
   scanStatus.processedFiles = 0;
-  scanStatus.currentFile = '';
+  scanStatus.currentFile = "";
   scanStatus.error = null;
 
   try {
@@ -79,11 +105,11 @@ async function runScan(targetDir) {
     scanStatus.totalFiles = files.length;
     console.log(`Found ${files.length} images to process.`);
 
-    const checkStmt = db.prepare('SELECT 1 FROM photos WHERE filepath = ?');
+    const checkStmt = db.prepare("SELECT 1 FROM photos WHERE filepath = ?");
     const insertStmt = db.prepare(`
       INSERT INTO photos (
-        filepath, filename, latitude, longitude, location_name, date_taken
-      ) VALUES (?, ?, ?, ?, ?, ?)
+        filepath, filename, latitude, longitude, location_name, tags, date_taken
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const file of files) {
@@ -108,26 +134,34 @@ async function runScan(targetDir) {
           gps: true,
           tiff: true,
           xmp: false,
-          icc: false
+          icc: false,
         });
 
         if (metadata) {
-          if (typeof metadata.latitude === 'number' && typeof metadata.longitude === 'number') {
+          if (
+            typeof metadata.latitude === "number" &&
+            typeof metadata.longitude === "number"
+          ) {
             latitude = metadata.latitude;
             longitude = metadata.longitude;
           }
 
           // Fallback date properties
-          const rawDate = metadata.DateTimeOriginal || metadata.CreateDate || metadata.ModifyDate;
+          const rawDate =
+            metadata.DateTimeOriginal ||
+            metadata.CreateDate ||
+            metadata.ModifyDate;
           if (rawDate instanceof Date) {
             dateTaken = rawDate.toISOString();
-          } else if (typeof rawDate === 'string') {
+          } else if (typeof rawDate === "string") {
             dateTaken = new Date(rawDate).toISOString();
           }
         }
       } catch (exifErr) {
         // Some images don't have valid EXIF metadata, which is fine
-        console.warn(`Could not read EXIF for: ${file}. Reason: ${exifErr.message}`);
+        console.warn(
+          `Could not read EXIF for: ${file}. Reason: ${exifErr.message}`,
+        );
       }
 
       // If coordinates are found, resolve the location
@@ -143,17 +177,30 @@ async function runScan(targetDir) {
       if (!dateTaken) {
         try {
           const fileStat = fs.statSync(file);
-          dateTaken = (fileStat.birthtime || fileStat.mtime || new Date()).toISOString();
+          dateTaken = (
+            fileStat.birthtime ||
+            fileStat.mtime ||
+            new Date()
+          ).toISOString();
         } catch (fsStatErr) {
           dateTaken = new Date().toISOString();
         }
       }
 
       const filename = path.basename(file);
+      const tags = buildPhotoTags("", true);
 
       // Insert record
       try {
-        insertStmt.run(file, filename, latitude, longitude, locationName, dateTaken);
+        insertStmt.run(
+          file,
+          filename,
+          latitude,
+          longitude,
+          locationName,
+          tags,
+          dateTaken,
+        );
       } catch (dbErr) {
         console.error(`Database insert error for: ${file}`, dbErr);
       }
@@ -161,9 +208,11 @@ async function runScan(targetDir) {
       scanStatus.processedFiles++;
     }
 
-    console.log(`Scan completed. Processed ${scanStatus.processedFiles} / ${scanStatus.totalFiles} files.`);
+    console.log(
+      `Scan completed. Processed ${scanStatus.processedFiles} / ${scanStatus.totalFiles} files.`,
+    );
   } catch (err) {
-    console.error('Scan failed:', err);
+    console.error("Scan failed:", err);
     scanStatus.error = err.message;
   } finally {
     scanStatus.isScanning = false;
@@ -172,11 +221,11 @@ async function runScan(targetDir) {
 
 /**
  * Triggers background scanning of a directory.
- * @param {string} targetDir 
+ * @param {string} targetDir
  */
 export function startScanning(targetDir) {
   if (scanStatus.isScanning) {
-    throw new Error('Scan is already in progress.');
+    throw new Error("Scan is already in progress.");
   }
   // Run asynchronously in the background
   runScan(targetDir);
