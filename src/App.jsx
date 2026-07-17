@@ -51,6 +51,13 @@ export default function App() {
   const [showDeleteError, setShowDeleteError] = useState(false);
   const [fullscreenModalOpen, setFullscreenModalOpen] = useState(false);
   const [showNewOnly, setShowNewOnly] = useState(false);
+  const [draftMetadata, setDraftMetadata] = useState({
+    subject: "",
+    people: "",
+    tags: "",
+    description: "",
+    locationName: "",
+  });
   const folderInputRef = useRef(null);
 
   useEffect(() => {
@@ -121,6 +128,13 @@ export default function App() {
   // Update form fields when the selected photo changes
   useEffect(() => {
     if (selectedPhoto) {
+      setDraftMetadata({
+        subject: selectedPhoto.subject || "",
+        people: selectedPhoto.people || "",
+        tags: selectedPhoto.tags || "",
+        description: selectedPhoto.description || "",
+        locationName: selectedPhoto.location_name || "",
+      });
       setSubject(selectedPhoto.subject || "");
       setPeople(selectedPhoto.people || "");
       setTags(selectedPhoto.tags || "");
@@ -218,6 +232,10 @@ export default function App() {
     ? photos.filter((photo) => hasNewImageTag(photo.tags))
     : photos;
 
+  const handleBlur = (field, value) => {
+    setDraftMetadata((current) => ({ ...current, [field]: value }));
+  };
+
   const handleDeletePhoto = async (e) => {
     e.preventDefault();
     if (!selectedPhoto) return;
@@ -252,6 +270,16 @@ export default function App() {
       description: description.trim(),
       location_name: locationName.trim(),
     });
+
+    if (success) {
+      setDraftMetadata({
+        subject: subject.trim(),
+        people: people.trim(),
+        tags: tags.trim(),
+        description: description.trim(),
+        locationName: locationName.trim(),
+      });
+    }
     setIsSaving(false);
 
     if (success) {
@@ -380,6 +408,7 @@ export default function App() {
                       placeholder="Who or what is the main subject? (e.g. Rossco, Landscape)"
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
+                      onBlur={(e) => handleBlur("subject", e.target.value)}
                     />
                   </div>
 
@@ -394,6 +423,7 @@ export default function App() {
                       placeholder="Comma-separated list (e.g. Rossco, Sarah, Dave)"
                       value={people}
                       onChange={(e) => setPeople(e.target.value)}
+                      onBlur={(e) => handleBlur("people", e.target.value)}
                     />
                   </div>
 
@@ -408,6 +438,7 @@ export default function App() {
                       placeholder="Location name (automatically reverse geocoded if GPS exists)"
                       value={locationName}
                       onChange={(e) => setLocationName(e.target.value)}
+                      onBlur={(e) => handleBlur("locationName", e.target.value)}
                     />
                   </div>
 
@@ -422,6 +453,7 @@ export default function App() {
                       placeholder="Comma-separated tags (e.g. holiday, beach, night)"
                       value={tags}
                       onChange={(e) => setTags(e.target.value)}
+                      onBlur={(e) => handleBlur("tags", e.target.value)}
                     />
                   </div>
 
@@ -435,6 +467,7 @@ export default function App() {
                       placeholder="Add descriptions or comments..."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
+                      onBlur={(e) => handleBlur("description", e.target.value)}
                     />
                   </div>
 
