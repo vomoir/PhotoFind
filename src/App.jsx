@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useStore } from './store';
+import React, { useEffect, useRef, useState } from "react";
+import { useStore } from "./store";
 import {
   Search,
   FolderPlus,
@@ -15,8 +15,8 @@ import {
   AlertTriangle,
   X,
   Info,
-  ZoomIn
-} from 'lucide-react';
+  ZoomIn,
+} from "lucide-react";
 
 export default function App() {
   const {
@@ -33,29 +33,42 @@ export default function App() {
     updateMetadata,
     startScan,
     checkScanOnLoad,
-    deletePhoto
+    deletePhoto,
   } = useStore();
 
   const [importModalOpen, setImportModalOpen] = useState(false);
-  const [folderPath, setFolderPath] = useState('');
+  const [folderPath, setFolderPath] = useState("");
 
   // Local state for metadata form inputs
-  const [subject, setSubject] = useState('');
-  const [people, setPeople] = useState('');
-  const [tags, setTags] = useState('');
-  const [description, setDescription] = useState('');
-  const [locationName, setLocationName] = useState('');
+  const [subject, setSubject] = useState("");
+  const [people, setPeople] = useState("");
+  const [tags, setTags] = useState("");
+  const [description, setDescription] = useState("");
+  const [locationName, setLocationName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteError, setShowDeleteError] = useState(false);
   const [fullscreenModalOpen, setFullscreenModalOpen] = useState(false);
+  const [showNewOnly, setShowNewOnly] = useState(false);
+  const folderInputRef = useRef(null);
 
   useEffect(() => {
     const test = (e) => console.log("KEY:", e.key);
     window.addEventListener("keydown", test);
     return () => window.removeEventListener("keydown", test);
   }, []);
+
+  const closeFullscreen = () => {
+    setFullscreenModalOpen(false);
+
+    if (selectedPhoto) {
+      const el = document.getElementById(`photo-${selectedPhoto.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }
+  };
 
   // Keyboard event listener for arrow keys to navigate photos
   useEffect(() => {
@@ -64,39 +77,39 @@ export default function App() {
 
       // --- ESCAPE closes the selected photo ---
       if (e.key === "Escape") {
-        selectPhoto(selectedPhoto.id);   // or whatever your close function is
-        return;              // stop further processing
+        closeFullscreen();
+        return; // stop further processing
       }
 
       let nextPhotoId = null;
 
       if (e.key === "ArrowLeft") {
-        const currentIndex = photos.findIndex(p => p.id === selectedPhoto.id);
+        const currentIndex = photos.findIndex((p) => p.id === selectedPhoto.id);
         if (currentIndex > 0) {
           nextPhotoId = photos[currentIndex - 1].id;
         }
       } else if (e.key === "ArrowRight") {
-        const currentIndex = photos.findIndex(p => p.id === selectedPhoto.id);
+        const currentIndex = photos.findIndex((p) => p.id === selectedPhoto.id);
         if (currentIndex < photos.length - 1) {
           nextPhotoId = photos[currentIndex + 1].id;
         }
       }
 
       if (nextPhotoId) {
-        const nextPhoto = photos.find(p => p.id === nextPhotoId);
+        const nextPhoto = photos.find((p) => p.id === nextPhotoId);
         if (nextPhoto) {
           selectPhoto(nextPhoto);
 
           const el = document.getElementById(`photo-${nextPhoto.id}`);
           if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            el.scrollIntoView({ behavior: "smooth", block: "nearest" });
           }
         }
       }
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
   }, [photos, selectedPhoto, selectPhoto]);
 
   // Load initial photos and check scan state
@@ -108,39 +121,112 @@ export default function App() {
   // Update form fields when the selected photo changes
   useEffect(() => {
     if (selectedPhoto) {
-      setSubject(selectedPhoto.subject || '');
-      setPeople(selectedPhoto.people || '');
-      setTags(selectedPhoto.tags || '');
-      setDescription(selectedPhoto.description || '');
-      setLocationName(selectedPhoto.location_name || '');
+      setSubject(selectedPhoto.subject || "");
+      setPeople(selectedPhoto.people || "");
+      setTags(selectedPhoto.tags || "");
+      setDescription(selectedPhoto.description || "");
+      setLocationName(selectedPhoto.location_name || "");
       setShowSaveSuccess(false);
     }
   }, [selectedPhoto]);
 
+  // Keep the selected gallery card in view when the active photo changes
+  useEffect(() => {
+    if (!selectedPhoto) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      const el = document.getElementById(`photo-${selectedPhoto.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [selectedPhoto?.id]);
+
   // Handle ESC key to close fullscreen
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && fullscreenModalOpen) {
-        setFullscreenModalOpen(false);
+      if (e.key === "Escape" && fullscreenModalOpen) {
+        closeFullscreen();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [fullscreenModalOpen]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [fullscreenModalOpen, selectedPhoto?.id]);
 
   const handleStartScan = (e) => {
     e.preventDefault();
-    if (folderPath.trim() !== '') {
+    if (folderPath.trim() !== "") {
       startScan(folderPath.trim());
+      setImportModalOpen(false);
     }
   };
 
-    const handleDeletePhoto = async (e) => {
+  const handleChooseFolder = async () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (window.showDirectoryPicker) {
+      try {
+        const dirHandle = await window.showDirectoryPicker();
+        const selectedPath =
+          dirHandle?.name || dirHandle?.kind || "Selected folder";
+        setFolderPath(selectedPath);
+        return;
+      } catch (err) {
+        if (err && err.name !== "AbortError") {
+          console.error("Directory selection failed:", err);
+        }
+        return;
+      }
+    }
+
+    if (folderInputRef.current) {
+      folderInputRef.current.value = "";
+      folderInputRef.current.click();
+    }
+  };
+
+  const handleFolderInputChange = (event) => {
+    const files = Array.from(event.target.files || []);
+
+    if (files.length === 0) {
+      return;
+    }
+
+    const selectedFile = files[0];
+    const relativePath = selectedFile?.webkitRelativePath || "";
+    const resolvedPath = relativePath
+      ? relativePath.split("/").slice(0, -1).join("/") || selectedFile.name
+      : selectedFile?.name || "Selected folder";
+
+    setFolderPath(resolvedPath);
+  };
+
+  const hasNewImageTag = (tags = "") => {
+    return (tags || "")
+      .split(",")
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(Boolean)
+      .includes("new image");
+  };
+
+  const visiblePhotos = showNewOnly
+    ? photos.filter((photo) => hasNewImageTag(photo.tags))
+    : photos;
+
+  const handleDeletePhoto = async (e) => {
     e.preventDefault();
     if (!selectedPhoto) return;
 
-    if (!window.confirm(`Are you sure you want to delete "${selectedPhoto.filename}"? This cannot be undone.`)) {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete "${selectedPhoto.filename}"? This cannot be undone.`,
+      )
+    ) {
       return;
     }
 
@@ -175,15 +261,15 @@ export default function App() {
   };
 
   const formatExifDate = (dateStr) => {
-    if (!dateStr) return 'Unknown Date';
+    if (!dateStr) return "Unknown Date";
     try {
       const d = new Date(dateStr);
       return d.toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       });
     } catch {
       return dateStr;
@@ -209,11 +295,11 @@ export default function App() {
   };
 
   const handleImageError = (event) => {
-    if (event.currentTarget.dataset.fallbackApplied === 'true') {
+    if (event.currentTarget.dataset.fallbackApplied === "true") {
       return;
     }
 
-    event.currentTarget.dataset.fallbackApplied = 'true';
+    event.currentTarget.dataset.fallbackApplied = "true";
     event.currentTarget.src = placeholderImage;
   };
 
@@ -243,14 +329,13 @@ export default function App() {
             disabled={scanning}
           >
             <FolderPlus size={18} />
-            {scanning ? 'Scanning...' : 'Import Photos'}
+            {scanning ? "Scanning..." : "Import Photos"}
           </button>
         </div>
       </header>
 
       {/* Main Panel Layout */}
       <main className="main-workspace">
-
         {/* Left Panel: Photo Preview & Metadata Editor */}
         <section className="panel-left">
           <div className="viewer-section">
@@ -265,7 +350,10 @@ export default function App() {
                 </div>
 
                 {/* Scaled Image Preview */}
-                <div className="image-preview-container" onClick={() => setFullscreenModalOpen(true)}>
+                <div
+                  className="image-preview-container"
+                  onClick={() => setFullscreenModalOpen(true)}
+                >
                   <img
                     src={getImgSrc(selectedPhoto.filepath)}
                     alt={selectedPhoto.filename}
@@ -281,7 +369,6 @@ export default function App() {
 
                 {/* Form to Edit/Save Metadata */}
                 <form className="metadata-form" onSubmit={handleSaveMetadata}>
-
                   {/* Subject */}
                   <div className="form-group">
                     <label className="form-label">
@@ -352,15 +439,36 @@ export default function App() {
                   </div>
 
                   {/* Date and GPS Metadata Info */}
-                  <div className="form-row" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <div
+                    className="form-row"
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                      }}
+                    >
                       <Calendar size={12} />
                       <span>{formatExifDate(selectedPhoto.date_taken)}</span>
                     </div>
                     {selectedPhoto.latitude && selectedPhoto.longitude && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                        }}
+                      >
                         <MapPin size={12} />
-                        <span>GPS Coordinates ({selectedPhoto.latitude.toFixed(4)}, {selectedPhoto.longitude.toFixed(4)})</span>
+                        <span>
+                          GPS Coordinates ({selectedPhoto.latitude.toFixed(4)},{" "}
+                          {selectedPhoto.longitude.toFixed(4)})
+                        </span>
                       </div>
                     )}
                   </div>
@@ -373,17 +481,25 @@ export default function App() {
                       </span>
                     )}
                     {showDeleteError && (
-                      <span style={{ color: '#fca5a5', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span
+                        style={{
+                          color: "#fca5a5",
+                          fontSize: "0.9rem",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                        }}
+                      >
                         <AlertTriangle size={16} /> Error deleting photo
                       </span>
                     )}
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <div style={{ display: "flex", gap: "0.75rem" }}>
                       <button
                         type="button"
                         className="btn-secondary"
                         onClick={handleDeletePhoto}
                         disabled={isDeleting}
-                        style={{ color: '#ef4444' }}
+                        style={{ color: "#ef4444" }}
                       >
                         {isDeleting ? (
                           <>
@@ -397,14 +513,18 @@ export default function App() {
                           </>
                         )}
                       </button>
-                      <button type="submit" className="btn-primary" disabled={isSaving}>
+                      <button
+                        type="submit"
+                        className="btn-primary"
+                        disabled={isSaving}
+                      >
                         {isSaving ? (
                           <>
                             <Loader2 size={16} className="spinner" />
                             Saving...
                           </>
                         ) : (
-                          'Save Metadata'
+                          "Save Metadata"
                         )}
                       </button>
                     </div>
@@ -412,7 +532,7 @@ export default function App() {
                 </form>
               </>
             ) : (
-              <div className="no-image-selected" style={{ height: '70vh' }}>
+              <div className="no-image-selected" style={{ height: "70vh" }}>
                 <ImageIcon className="no-image-icon" />
                 <p>Select a photo from the gallery to edit metadata</p>
               </div>
@@ -422,27 +542,40 @@ export default function App() {
 
         {/* Right Panel: Gallery Search & Grid View */}
         <section className="panel-right">
-
           {/* Docked Scan Progress Banner */}
           {scanning && (
-            <div className="scanner-progress-container" style={{ marginBottom: '1.5rem' }}>
+            <div
+              className="scanner-progress-container"
+              style={{ marginBottom: "1.5rem" }}
+            >
               <div className="scanner-progress-info">
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
                   <Loader2 size={16} className="spinner" />
                   Scanning files...
                 </span>
-                <span>{scanProgress.processed} / {scanProgress.total}</span>
+                <span>
+                  {scanProgress.processed} / {scanProgress.total}
+                </span>
               </div>
               <div className="progress-bar-bg">
                 <div
                   className="progress-bar-fill"
                   style={{
-                    width: `${scanProgress.total > 0 ? (scanProgress.processed / scanProgress.total) * 100 : 0}%`
+                    width: `${scanProgress.total > 0 ? (scanProgress.processed / scanProgress.total) * 100 : 0}%`,
                   }}
                 />
               </div>
               {scanProgress.currentFile && (
-                <div className="scanner-current-file" title={scanProgress.currentFile}>
+                <div
+                  className="scanner-current-file"
+                  title={scanProgress.currentFile}
+                >
                   Processing: {scanProgress.currentFile}
                 </div>
               )}
@@ -451,41 +584,97 @@ export default function App() {
 
           {/* Scanner Error Banner */}
           {scanError && (
-            <div className="scanner-progress-container" style={{ borderColor: 'rgba(239, 68, 68, 0.3)', background: 'rgba(239, 68, 68, 0.05)', marginBottom: '1.5rem', color: '#fca5a5' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+            <div
+              className="scanner-progress-container"
+              style={{
+                borderColor: "rgba(239, 68, 68, 0.3)",
+                background: "rgba(239, 68, 68, 0.05)",
+                marginBottom: "1.5rem",
+                color: "#fca5a5",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                }}
+              >
                 <AlertTriangle size={16} />
                 Scan Error
               </div>
-              <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>{scanError}</div>
+              <div style={{ fontSize: "0.8rem", marginTop: "0.25rem" }}>
+                {scanError}
+              </div>
             </div>
           )}
 
           <div className="gallery-header">
             <h2 className="gallery-title">
-              {searchQuery.trim() !== '' ? 'Search Results' : 'All Photos'}
-              <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 'normal', marginLeft: '0.75rem' }}>
-                ({photos.length} item{photos.length !== 1 ? 's' : ''})
+              {searchQuery.trim() !== ""
+                ? "Search Results"
+                : showNewOnly
+                  ? "New Photos"
+                  : "All Photos"}
+              <span
+                style={{
+                  fontSize: "0.9rem",
+                  color: "var(--text-muted)",
+                  fontWeight: "normal",
+                  marginLeft: "0.75rem",
+                }}
+              >
+                ({visiblePhotos.length} item
+                {visiblePhotos.length !== 1 ? "s" : ""})
               </span>
             </h2>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setShowNewOnly((value) => !value)}
+              style={{ padding: "0.5rem 0.8rem", whiteSpace: "nowrap" }}
+            >
+              {showNewOnly ? "Show All" : "Show New Only"}
+            </button>
           </div>
 
           {loadingPhotos ? (
-            <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <div
+              style={{
+                display: "flex",
+                flex: 1,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <Loader2 className="spinner spinner-large" />
             </div>
-          ) : photos.length > 0 ? (
+          ) : visiblePhotos.length > 0 ? (
             <div className="photo-grid">
-              {photos.map((photo) => {
+              {visiblePhotos.map((photo) => {
                 const isSelected = selectedPhoto?.id === photo.id;
 
                 // Construct badges lists
-                const peopleList = photo.people ? photo.people.split(',').map(p => p.trim()).filter(Boolean) : [];
-                const tagsList = photo.tags ? photo.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+                const peopleList = photo.people
+                  ? photo.people
+                      .split(",")
+                      .map((p) => p.trim())
+                      .filter(Boolean)
+                  : [];
+                const tagsList = photo.tags
+                  ? photo.tags
+                      .split(",")
+                      .map((t) => t.trim())
+                      .filter(Boolean)
+                  : [];
 
                 return (
                   <div
                     key={photo.id}
-                    className={`photo-card ${isSelected ? 'selected' : ''}`}
+                    id={`photo-${photo.id}`}
+                    className={`photo-card ${isSelected ? "selected" : ""}`}
                     onClick={() => selectPhoto(photo)}
                   >
                     <div className="card-thumbnail-container">
@@ -504,9 +693,14 @@ export default function App() {
 
                       {/* Display Location */}
                       {photo.location_name && (
-                        <div className="card-meta-row" title={photo.location_name}>
+                        <div
+                          className="card-meta-row"
+                          title={photo.location_name}
+                        >
                           <MapPin className="card-meta-icon" />
-                          <span className="card-meta-text">{photo.location_name}</span>
+                          <span className="card-meta-text">
+                            {photo.location_name}
+                          </span>
                         </div>
                       )}
 
@@ -514,24 +708,49 @@ export default function App() {
                       <div className="card-meta-row">
                         <Calendar className="card-meta-icon" />
                         <span className="card-meta-text">
-                          {new Date(photo.date_taken).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {new Date(photo.date_taken).toLocaleDateString(
+                            undefined,
+                            { month: "short", day: "numeric", year: "numeric" },
+                          )}
                         </span>
                       </div>
 
                       {/* Subject and People Badges */}
                       <div className="card-badges">
+                        {hasNewImageTag(photo.tags) && (
+                          <span
+                            className="card-badge"
+                            title="Imported in the latest scan"
+                            style={{
+                              background: "rgba(34, 197, 94, 0.18)",
+                              color: "#86efac",
+                            }}
+                          >
+                            New
+                          </span>
+                        )}
                         {photo.subject && (
-                          <span className="card-badge" title={`Subject: ${photo.subject}`}>
+                          <span
+                            className="card-badge"
+                            title={`Subject: ${photo.subject}`}
+                          >
                             {photo.subject}
                           </span>
                         )}
                         {peopleList.slice(0, 2).map((person, idx) => (
-                          <span key={idx} className="card-badge card-badge-people" title={`Person: ${person}`}>
+                          <span
+                            key={idx}
+                            className="card-badge card-badge-people"
+                            title={`Person: ${person}`}
+                          >
                             {person}
                           </span>
                         ))}
                         {peopleList.length > 2 && (
-                          <span className="card-badge card-badge-people" style={{ opacity: 0.8 }}>
+                          <span
+                            className="card-badge card-badge-people"
+                            style={{ opacity: 0.8 }}
+                          >
                             +{peopleList.length - 2}
                           </span>
                         )}
@@ -546,14 +765,16 @@ export default function App() {
               <ImageIcon className="empty-gallery-icon" />
               <h3 className="empty-gallery-title">No Photos Found</h3>
               <p className="empty-gallery-desc">
-                {searchQuery.trim() !== ''
+                {searchQuery.trim() !== ""
                   ? `No pictures match your search filter "${searchQuery}".`
-                  : 'Get started by scanning a folder containing your image library.'}
+                  : showNewOnly
+                    ? "No newly imported photos were found in this view."
+                    : "Get started by scanning a folder containing your image library."}
               </p>
-              {searchQuery.trim() === '' && (
+              {searchQuery.trim() === "" && (
                 <button
                   className="btn-primary"
-                  style={{ marginTop: '1rem' }}
+                  style={{ marginTop: "1rem" }}
                   onClick={() => setImportModalOpen(true)}
                 >
                   <FolderPlus size={18} />
@@ -562,7 +783,6 @@ export default function App() {
               )}
             </div>
           )}
-
         </section>
       </main>
 
@@ -570,10 +790,21 @@ export default function App() {
       {importModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <h2 className="modal-title">Scan Directory</h2>
               <button
-                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                }}
                 onClick={() => setImportModalOpen(false)}
               >
                 <X size={20} />
@@ -581,43 +812,99 @@ export default function App() {
             </div>
 
             <p className="modal-description">
-              Provide the absolute filepath of the directory containing your images.
-              The scanner will recursively search for JPG, JPEG, PNG, WEBP, and HEIC files,
-              parse their EXIF locations, and register them.
+              Provide the absolute filepath of the directory containing your
+              images. The scanner will recursively search for JPG, JPEG, PNG,
+              WEBP, and HEIC files, parse their EXIF locations, and register
+              them.
             </p>
 
-            <form onSubmit={handleStartScan} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <form
+              onSubmit={handleStartScan}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "1.25rem",
+              }}
+            >
               <div className="form-group">
                 <label className="form-label">Folder Path</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. C:\Users\YourName\Pictures\Vacation2026"
-                  value={folderPath}
-                  onChange={(e) => setFolderPath(e.target.value)}
-                  required
-                  autoFocus
-                />
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "0.75rem",
+                    alignItems: "center",
+                  }}
+                >
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. C:\Users\YourName\Pictures\Vacation2026"
+                    value={folderPath}
+                    onChange={(e) => setFolderPath(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                  <input
+                    ref={folderInputRef}
+                    type="file"
+                    style={{
+                      position: "absolute",
+                      opacity: 0,
+                      pointerEvents: "none",
+                    }}
+                    webkitdirectory="true"
+                    directory="true"
+                    multiple
+                    onChange={handleFolderInputChange}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleChooseFolder}
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    Choose Folder
+                  </button>
+                </div>
+                <p
+                  style={{
+                    marginTop: "0.5rem",
+                    fontSize: "0.8rem",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  Optional: use the picker to choose a folder, or type the path
+                  manually.
+                </p>
               </div>
 
               {scanning && (
                 <div className="scanner-progress-container">
                   <div className="scanner-progress-info">
                     <span>Scanning...</span>
-                    <span>{scanProgress.processed} / {scanProgress.total}</span>
+                    <span>
+                      {scanProgress.processed} / {scanProgress.total}
+                    </span>
                   </div>
                   <div className="progress-bar-bg">
                     <div
                       className="progress-bar-fill"
                       style={{
-                        width: `${scanProgress.total > 0 ? (scanProgress.processed / scanProgress.total) * 100 : 0}%`
+                        width: `${scanProgress.total > 0 ? (scanProgress.processed / scanProgress.total) * 100 : 0}%`,
                       }}
                     />
                   </div>
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "0.75rem",
+                  marginTop: "0.5rem",
+                }}
+              >
                 <button
                   type="button"
                   className="btn-secondary"
@@ -629,9 +916,9 @@ export default function App() {
                 <button
                   type="submit"
                   className="btn-primary"
-                  disabled={scanning || folderPath.trim() === ''}
+                  disabled={scanning || folderPath.trim() === ""}
                 >
-                  {scanning ? 'Scanning In Background...' : 'Start Scan'}
+                  {scanning ? "Scanning In Background..." : "Start Scan"}
                 </button>
               </div>
             </form>
@@ -641,11 +928,14 @@ export default function App() {
 
       {/* Modal Dialog: Fullscreen Image Viewer */}
       {fullscreenModalOpen && selectedPhoto && (
-        <div className="fullscreen-overlay" onClick={() => setFullscreenModalOpen(false)}>
-          <div className="fullscreen-container" onClick={(e) => e.stopPropagation()}>
+        <div className="fullscreen-overlay" onClick={closeFullscreen}>
+          <div
+            className="fullscreen-container"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               className="fullscreen-close-btn"
-              onClick={() => setFullscreenModalOpen(false)}
+              onClick={closeFullscreen}
               title="Close (ESC)"
             >
               <X size={24} />
