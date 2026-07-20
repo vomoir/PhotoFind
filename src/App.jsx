@@ -95,6 +95,12 @@ export default function App() {
     const handleKeyPress = (e) => {
       if (!selectedPhoto) return;
 
+      // Ignore photo navigation if user is typing in an input, textarea, or contentEditable element
+      const targetTag = e.target.tagName?.toLowerCase();
+      if (targetTag === "input" || targetTag === "textarea" || e.target.isContentEditable) {
+        return;
+      }
+
       // --- ESCAPE closes the selected photo ---
       if (e.key === "Escape") {
         closeFullscreen();
