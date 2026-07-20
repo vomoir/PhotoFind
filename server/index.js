@@ -101,6 +101,30 @@ app.put('/api/photos/:id/metadata', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// 5.b Get all unique tags across all photos
+app.get('/api/tags', (req, res) => {
+  try {
+    const stmt = db.prepare('SELECT tags FROM photos');
+    const rows = stmt.all();
+    const tagSet = new Set();
+    rows.forEach(row => {
+      if (row.tags) {
+        row.tags.split(',').forEach(tag => {
+          const trimmed = tag.trim().toLowerCase();
+          if (trimmed) {
+            tagSet.add(trimmed);
+          }
+        });
+      }
+    });
+    const sortedTags = Array.from(tagSet).sort().map(tag => ({ value: tag, label: tag }));
+    res.json(sortedTags);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 6. Delete a photo from the database
 app.delete('/api/photos/:id', (req, res) => {
   const { id } = req.params;

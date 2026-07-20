@@ -11,6 +11,19 @@ export const useStore = create((set, get) => {
     scanProgress: { processed: 0, total: 0, currentFile: '' },
     scanError: null,
     loadingPhotos: false,
+    tags: [],
+
+    // Fetch unique tags from API
+    fetchTags: async () => {
+      try {
+        const response = await fetch('/api/tags');
+        if (!response.ok) throw new Error('Failed to fetch tags');
+        const data = await response.json();
+        set({ tags: data });
+      } catch (err) {
+        console.error('Error fetching tags:', err);
+      }
+    },
 
     // Fetch photos list from API
     fetchPhotos: async () => {
@@ -73,6 +86,8 @@ export const useStore = create((set, get) => {
           photos: updatedPhotos,
           selectedPhoto: get().selectedPhoto?.id === id ? updatedPhoto : get().selectedPhoto
         });
+
+        get().fetchTags();
 
         return true;
       } catch (err) {
@@ -164,6 +179,7 @@ export const useStore = create((set, get) => {
             });
             // Fetch updated photos list
             get().fetchPhotos();
+            get().fetchTags();
           }
         } catch (err) {
           console.error('Error polling scan status:', err);
