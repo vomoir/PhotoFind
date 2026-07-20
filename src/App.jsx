@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { ReactTags } from "react-tag-autocomplete";
 import { useStore } from "./store";
 import {
   Search,
@@ -18,6 +19,15 @@ import {
   ZoomIn,
 } from "lucide-react";
 
+const parseTagsString = (tagsStr) => {
+  if (!tagsStr) return [];
+  return tagsStr
+    .split(",")
+    .map(t => t.trim().toLowerCase())
+    .filter(Boolean)
+    .map(t => ({ value: t, label: t }));
+};
+
 export default function App() {
   const {
     photos,
@@ -34,6 +44,8 @@ export default function App() {
     startScan,
     checkScanOnLoad,
     deletePhoto,
+    tags: dbSuggestions,
+    fetchTags,
   } = useStore();
 
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -43,6 +55,7 @@ export default function App() {
   const [subject, setSubject] = useState("");
   const [people, setPeople] = useState("");
   const [tags, setTags] = useState("");
+  const [selectedTags, setSelectedTags] = useState([]);
   const [description, setDescription] = useState("");
   const [locationName, setLocationName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -122,6 +135,7 @@ export default function App() {
   // Load initial photos and check scan state
   useEffect(() => {
     fetchPhotos();
+    fetchTags();
     checkScanOnLoad();
   }, []);
 
@@ -138,6 +152,7 @@ export default function App() {
       setSubject(selectedPhoto.subject || "");
       setPeople(selectedPhoto.people || "");
       setTags(selectedPhoto.tags || "");
+      setSelectedTags(parseTagsString(selectedPhoto.tags));
       setDescription(selectedPhoto.description || "");
       setLocationName(selectedPhoto.location_name || "");
       setShowSaveSuccess(false);
@@ -258,15 +273,31 @@ export default function App() {
     }
   };
 
+  const onAdd = useCallback((newTag) => {
+    const cleanTag = {
+      value: newTag.value.trim().toLowerCase(),
+      label: newTag.label.trim().toLowerCase(),
+    };
+    setSelectedTags((prevTags) => {
+      if (prevTags.some((t) => t.value === cleanTag.value)) return prevTags;
+      return [...prevTags, cleanTag];
+    });
+  }, []);
+
+  const onDelete = useCallback((tagIndex) => {
+    setSelectedTags((prevTags) => prevTags.filter((_, i) => i !== tagIndex));
+  }, []);
+
   const handleSaveMetadata = async (e) => {
     e.preventDefault();
     if (!selectedPhoto) return;
 
     setIsSaving(true);
+    const serializedTags = selectedTags.map((t) => t.label.trim().toLowerCase()).join(", ");
     const success = await updateMetadata(selectedPhoto.id, {
       subject: subject.trim(),
       people: people.trim(),
-      tags: tags.trim(),
+      tags: serializedTags,
       description: description.trim(),
       location_name: locationName.trim(),
     });
@@ -275,10 +306,11 @@ export default function App() {
       setDraftMetadata({
         subject: subject.trim(),
         people: people.trim(),
-        tags: tags.trim(),
+        tags: serializedTags,
         description: description.trim(),
         locationName: locationName.trim(),
       });
+      setTags(serializedTags);
     }
     setIsSaving(false);
 
@@ -442,20 +474,33 @@ export default function App() {
                     />
                   </div>
 
-                  {/* Tags */}
-                  <div className="form-group">
-                    <label className="form-label">
-                      <Tag size={14} /> Tags
-                    </label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Comma-separated tags (e.g. holiday, beach, night)"
-                      value={tags}
-                      onChange={(e) => setTags(e.target.value)}
-                      onBlur={(e) => handleBlur("tags", e.target.value)}
-                    />
-                  </div>
+                   {/* Tags */}
+                   <div className="form-group tag-autocomplete-group">
+                     <label className="form-label">
+                       <Tag size={14} /> Tags
+                     </label>
+                     <ReactTags
+                       selected={selectedTags}
+                       suggestions={dbSuggestions}
+                       onAdd={onAdd}
+                       onDelete={onDelete}
+                       allowNew={true}
+                       newOptionText="Add new tag: %value%"
+                       placeholderText="Type to search or add tags..."
+                       noOptionsText="No matching tags found"
+                       classNames={{
+                         root: "react-tags",
+                         rootFocused: "is-focused",
+                         selected: "react-tags-selected",
+                         selectedTag: "react-tags-selected-tag",
+                         search: "react-tags-search",
+                         searchInput: "react-tags-search-input",
+                         listBox: "react-tags-listbox",
+                         option: "react-tags-listbox-option",
+                         optionActive: "is-active",
+                       }}
+                     />
+                   </div>
 
                   {/* Description */}
                   <div className="form-group">
